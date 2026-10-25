@@ -14,7 +14,7 @@ final class ControlsWindow: NSWindowController {
     private let general: GeneralControls
     private let glyphToggle = NSButton(checkboxWithTitle: "Device icon", target: nil, action: nil)
     private let percentToggle = NSButton(checkboxWithTitle: "Percentage", target: nil, action: nil)
-    private let barToggle = NSButton(checkboxWithTitle: "Battery bar", target: nil, action: nil)
+    private let emojiToggle = NSButton(checkboxWithTitle: "Status emoji", target: nil, action: nil)
     private let preferenceHint = NSTextField(wrappingLabelWithString: "Keep at least one item visible.")
     private let onPreferencesChange: (MenuBarPreferences) -> Void
     private var diagnostic = ""
@@ -42,9 +42,9 @@ final class ControlsWindow: NSWindowController {
         let menuTitle = NSTextField(labelWithString: "Menu Bar"); menuTitle.font = .systemFont(ofSize: 13, weight: .semibold)
         glyphToggle.state = preferences.deviceGlyph ? .on : .off
         percentToggle.state = preferences.percentage ? .on : .off
-        barToggle.state = preferences.batteryBar ? .on : .off
-        for toggle in [glyphToggle, percentToggle, barToggle] { toggle.target = self; toggle.action = #selector(changePreferences(_:)) }
-        let toggles = NSStackView(views: [glyphToggle, percentToggle, barToggle]); toggles.spacing = 14
+        emojiToggle.state = preferences.statusEmoji ? .on : .off
+        for toggle in [glyphToggle, percentToggle, emojiToggle] { toggle.target = self; toggle.action = #selector(changePreferences(_:)) }
+        let toggles = NSStackView(views: [glyphToggle, percentToggle, emojiToggle]); toggles.spacing = 14
         preferenceHint.font = .systemFont(ofSize: 11); preferenceHint.textColor = .secondaryLabelColor; preferenceHint.isHidden = true
         let menuOptions = NSStackView(views: [menuTitle, toggles, preferenceHint]); menuOptions.orientation = .vertical; menuOptions.alignment = .leading; menuOptions.spacing = 10
         let details = NSButton(title: "Technical Details…", target: self, action: #selector(showDetails)); details.bezelStyle = .inline
@@ -119,7 +119,7 @@ final class ControlsWindow: NSWindowController {
     }
 
     @objc private func changePreferences(_ sender: NSButton) {
-        let preferences = MenuBarPreferences(deviceGlyph: glyphToggle.state == .on, percentage: percentToggle.state == .on, batteryBar: barToggle.state == .on)
+        let preferences = MenuBarPreferences(deviceGlyph: glyphToggle.state == .on, percentage: percentToggle.state == .on, statusEmoji: emojiToggle.state == .on)
         guard preferences.isValid else { sender.state = .on; preferenceHint.isHidden = false; resizeForContent(); return }
         preferenceHint.isHidden = true
         resizeForContent()
