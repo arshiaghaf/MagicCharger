@@ -6,14 +6,14 @@ Optional local notifications tell you when charging starts and when a device rea
 
 ## What Magic Charger Does
 
-Magic Charger reads relevant accessory battery information through IOKit. It shows charging devices in the menu bar with a device glyph, exact percentage, and battery bar. When no supported device has verified charging evidence, the menu-bar items disappear; reopen the app from Finder or Spotlight for controls and Quit.
+Magic Charger reads relevant accessory battery information through IOKit. It shows charging devices in the menu bar in this order: device glyph, exact percentage, and status emoji (⚡️ while charging, 🔋 at 100%). When no supported device has verified charging evidence, the menu-bar items disappear; reopen the app from Finder or Spotlight for controls and Quit.
 
 The controls window lets you choose which menu-bar elements and alerts to show, check notification permission, and send one clearly labeled test notification without simulating charging. Closing the window keeps monitoring. There is no permanent Dock icon. **Launch at Login** is off by default and can be enabled in General.
 
 ## Features
 
 - Shows each verified charging accessory separately, without averaging battery levels
-- Offers independent menu-bar choices for the device glyph, percentage, and battery bar
+- Offers independent menu-bar choices for the device glyph, percentage, and status emoji
 - Offers independent Charging Started, Unplug Soon (78%), Unplug Reminder (80%), and Fully Charged (100%) alerts; the 80% reminder prompts you to unplug to help preserve long-term battery health
 - Consumes skipped and disabled alert milestones so old readings do not trigger later reminders
 - Keeps controls, notification settings, a test notification, and Quit available when the menu bar is empty

@@ -21,26 +21,26 @@ final class MenuBarPresenter {
     }
 
     func present(_ r: Reading, preferences: MenuBarPreferences, target: AppDelegate) {
-        guard r.active else { return }
+        guard let content = MenuBarContent(r, preferences: preferences) else { return }
         let item: NSStatusItem
         if let existing = items[r.id] { item = existing }
         else {
             item = NSStatusBar.system.statusItem(withLength: NSStatusItem.variableLength)
             items[r.id] = item
-            let menu = NSMenu(); menu.addItem(withTitle: "\(r.name) — Charging", action: nil, keyEquivalent: "")
+            let menu = NSMenu(); menu.addItem(withTitle: "\(r.name) — \(content.status)", action: nil, keyEquivalent: "")
             menu.addItem(withTitle: "Settings…", action: #selector(AppDelegate.showSettings), keyEquivalent: ",").target = target
             menu.addItem(withTitle: "Quit Magic Charger", action: #selector(AppDelegate.quit), keyEquivalent: "q").target = target
             item.menu = menu
         }
-        let title = preferences.percentage ? " \(r.percent.map { "\($0)%" } ?? "?")" : ""
-        if item.button?.title != title { item.button?.title = title }
-        let imageSignature = "\(r.symbol):\(MenuBarPreferences.level(r.percent) ?? -1):\(preferences.deviceGlyph):\(preferences.batteryBar)"
+        item.menu?.items.first?.title = "\(r.name) — \(content.status)"
+        if item.button?.title != content.title { item.button?.title = content.title }
+        item.button?.imagePosition = .imageLeft
+        let imageSignature = "\(r.symbol):\(preferences.deviceGlyph)"
         if itemImageSignatures[r.id] != imageSignature {
-            item.button?.image = (preferences.deviceGlyph || preferences.batteryBar)
-                ? MenuBarIcon.image(symbol: r.symbol, percent: r.percent, deviceGlyph: preferences.deviceGlyph, batteryBar: preferences.batteryBar) : nil
+            item.button?.image = preferences.deviceGlyph ? MenuBarIcon.image(symbol: r.symbol) : nil
             itemImageSignatures[r.id] = imageSignature
         }
-        let description = "\(r.name), charging, \(r.percent.map { "\($0) percent" } ?? "battery level unknown")"
+        let description = content.accessibilityLabel
         if item.button?.toolTip != description {
             item.button?.setAccessibilityLabel(description)
             item.button?.toolTip = description

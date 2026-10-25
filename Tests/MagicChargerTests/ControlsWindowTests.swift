@@ -77,7 +77,7 @@ final class ControlsWindowTests: XCTestCase {
         let all = descendants(try XCTUnwrap(window.contentView))
         XCTAssertEqual(all.compactMap { $0 as? NSTextField }.first { $0.stringValue == "79%" }?.accessibilityLabel(), "79 percent")
         let buttonTitles = Set(all.compactMap { $0 as? NSButton }.map(\.title))
-        XCTAssertTrue(buttonTitles.isSuperset(of: ["Send Test", "Quit Magic Charger", "Launch at Login"]))
+        XCTAssertTrue(buttonTitles.isSuperset(of: ["Send Test", "Quit Magic Charger", "Launch at Login", "Device icon", "Percentage", "Status emoji"]))
         window.close()
     }
 }
