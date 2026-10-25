@@ -8,6 +8,7 @@ The following project artwork is excluded from the MIT License that covers the s
 
 - `assets/MagicCharger-master.png` — the app icon master image.
 - `assets/MagicCharger.icns` — icon representations derived from the master image. Copies of this file in an app bundle or as a DMG volume icon have the same artwork terms.
+- `docs/images/magiccharger-icon.png` — the README icon extracted from the app icon, under the same artwork terms.
 - `.background/installer.png` — the DMG background image generated during packaging. Copies in a DMG have the same artwork terms. The generator source code in `scripts/dmg-layout/Sources/DmgLayout/main.swift` remains under MIT.
 
 This repository does not offer these images for reuse under the MIT License. Ask the project maintainer for permission to reuse the artwork. This notice does not withdraw permissions already granted with earlier repository revisions.
