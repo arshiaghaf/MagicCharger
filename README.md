@@ -29,7 +29,7 @@ Magic Charger is currently a source preview. There is no downloadable release ye
 
 ### GitHub Releases (DMG) — WIP
 
-A downloadable DMG is not available yet. When one is published, it will appear on [GitHub Releases](https://github.com/arshiaghaf/MagicCharger/releases). The current release-preparation DMG contains an ARM64 app; Intel and universal distribution have not been verified.
+A downloadable DMG is not available yet. When one is published, it will appear on [GitHub Releases](https://github.com/arshiaghaf/magic-charger/releases). The current release-preparation DMG contains an ARM64 app; Intel and universal distribution have not been verified.
 
 ### Homebrew — WIP
 
@@ -40,8 +40,8 @@ Homebrew installation for Magic Charger is WIP. The tap, cask, and installation 
 Requires macOS 14 or later and an installed compatible Xcode/Swift 6.0-or-later toolchain.
 
 ```sh
-git clone https://github.com/arshiaghaf/MagicCharger.git
-cd MagicCharger
+git clone https://github.com/arshiaghaf/magic-charger.git
+cd magic-charger
 sh build-app.sh
 open "build/Magic Charger.app"
 ```
@@ -81,7 +81,7 @@ For these profiles, flag 3 with a valid percentage below 100% indicates charging
 - App Store sandbox compatibility and Intel builds remain unverified.
 - Notifications are optional reminders. Magic Charger does not provide automatic charge cutoff, a precise time-to-target estimate, or a guaranteed battery-health improvement.
 
-See the [validation evidence and hardware checklist](docs/VALIDATION.md) before reporting a new device result. Include only generic model and OS details in a [bug report](https://github.com/arshiaghaf/MagicCharger/issues/new/choose); do not post raw identifiers or registry dumps.
+See the [validation evidence and hardware checklist](docs/VALIDATION.md) before reporting a new device result. Include only generic model and OS details in a [bug report](https://github.com/arshiaghaf/magic-charger/issues/new/choose); do not post raw identifiers or registry dumps.
 
 ## Moving from an Earlier Preview
 

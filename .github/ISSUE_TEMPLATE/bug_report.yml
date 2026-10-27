@@ -5,7 +5,7 @@ body:
   - type: markdown
     attributes:
       value: |
-        Include only generic device and OS details. Do not attach raw registry dumps, addresses, serials, personalized names or other private data. For hardware checks, see the [validation checklist](https://github.com/arshiaghaf/MagicCharger/blob/main/docs/VALIDATION.md#hardware-validation-checklist).
+        Include only generic device and OS details. Do not attach raw registry dumps, addresses, serials, personalized names or other private data. For hardware checks, see the [validation checklist](https://github.com/arshiaghaf/magic-charger/blob/main/docs/VALIDATION.md#hardware-validation-checklist).
   - type: input
     id: version
     attributes:

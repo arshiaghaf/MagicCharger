@@ -1,6 +1,6 @@
 # Contributing
 
-Open an issue describing the problem or proposed change before substantial work. Use the [bug report](https://github.com/arshiaghaf/MagicCharger/issues/new/choose) for reproducible failures and the [hardware validation checklist](docs/VALIDATION.md#hardware-validation-checklist) for device evidence. Keep device reports anonymous: model family, OS version and relevant charging properties are enough. Do not post raw registry dumps, addresses, serials or personalized names.
+Open an issue describing the problem or proposed change before substantial work. Use the [bug report](https://github.com/arshiaghaf/magic-charger/issues/new/choose) for reproducible failures and the [hardware validation checklist](docs/VALIDATION.md#hardware-validation-checklist) for device evidence. Keep device reports anonymous: model family, OS version and relevant charging properties are enough. Do not post raw registry dumps, addresses, serials or personalized names.
 
 Use an installed compatible Swift 6.0+ macOS toolchain. Run:
 

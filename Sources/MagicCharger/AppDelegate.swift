@@ -118,7 +118,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, UNUserNotificationCent
         window = controls.window
     }
     @objc func viewReleases() {
-        let releases = URL(string: "https://github.com/arshiaghaf/MagicCharger/releases")!
+        let releases = URL(string: "https://github.com/arshiaghaf/magic-charger/releases")!
         controls.updateFeedbackForUpdates(NSWorkspace.shared.open(releases) ? "" : "Couldn’t open the releases page. Try again from your browser.")
     }
     @objc func showSettings() {
