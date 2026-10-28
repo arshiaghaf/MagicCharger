@@ -77,4 +77,20 @@ final class DeviceSettingsTests: XCTestCase {
         XCTAssertFalse(lifecycle.validates(try XCTUnwrap(tickets.first { $0.reading.id == a.id }), now: now))
         XCTAssertTrue(lifecycle.validates(try XCTUnwrap(tickets.first { $0.reading.id == b.id }), now: now))
     }
+    func testRegistrySessionKeysAreRemovedOnLoadAndNeverPersisted() throws {
+        let suite = "MagicChargerTests." + UUID().uuidString
+        let defaults = try XCTUnwrap(UserDefaults(suiteName: suite))
+        defer { defaults.removePersistentDomain(forName: suite) }
+        let sessions = ["registry:801:42": Session(lastSeen: now), id(1): Session(lastSeen: now)]
+        let store = SessionStore(defaults: defaults)
+        // Simulate history from an earlier preview, without a raw real identifier.
+        defaults.set(try JSONEncoder().encode(sessions), forKey: "chargingSessions.v2")
+        XCTAssertEqual(Set(store.load(now: now).sessions.keys), [id(1)])
+        store.save(sessions)
+        let saved = try JSONDecoder().decode([String: Session].self, from: XCTUnwrap(defaults.data(forKey: "chargingSessions.v2")))
+        XCTAssertEqual(Set(saved.keys), [id(1)])
+        XCTAssertFalse(DeviceIdentity.isPersistent("device:short"))
+        XCTAssertFalse(DeviceIdentity.isPersistent("registry:801:42"))
+    }
+
 }

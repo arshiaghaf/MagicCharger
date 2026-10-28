@@ -16,12 +16,8 @@ struct DeviceSettings {
         self.defaults = defaults
         if let data = defaults?.data(forKey: Self.storage),
            let decoded = try? JSONDecoder().decode([String: Entry].self, from: data) {
-            entries = decoded.filter { Self.isStable($0.key) && $0.value.ordinal > 0 && ["Magic Keyboard", "Magic Mouse"].contains($0.value.family) }
+            entries = decoded.filter { DeviceIdentity.isPersistent($0.key) && $0.value.ordinal > 0 && ["Magic Keyboard", "Magic Mouse"].contains($0.value.family) }
         }
-    }
-    private static func isStable(_ id: String) -> Bool {
-        let digest = id.dropFirst("device:".count)
-        return id.hasPrefix("device:") && digest.count == 64 && digest.allSatisfy { $0.isHexDigit }
     }
     mutating func register(_ readings: [Reading]) {
         var changed = false
@@ -52,7 +48,7 @@ struct DeviceSettings {
         }
     }
     private func save() {
-        let stable = entries.filter { Self.isStable($0.key) }
+        let stable = entries.filter { DeviceIdentity.isPersistent($0.key) }
         if let data = try? JSONEncoder().encode(stable) { defaults?.set(data, forKey: Self.storage) }
     }
 }

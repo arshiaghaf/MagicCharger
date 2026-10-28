@@ -84,10 +84,12 @@ final class AlertIntegrationTests: XCTestCase {
         let defaults = try XCTUnwrap(UserDefaults(suiteName: suite))
         defer { defaults.removePersistentDomain(forName: suite) }
         let store = SessionStore(defaults: defaults)
-        store.save(["expired": Session(lastSeen: now.addingTimeInterval(-31 * 86400)), "fresh": Session(lastSeen: now)])
+        let expired = "device:" + String(repeating: "0", count: 64)
+        let fresh = "device:" + String(repeating: "1", count: 64)
+        store.save([expired: Session(lastSeen: now.addingTimeInterval(-31 * 86400)), fresh: Session(lastSeen: now)])
         XCTAssertEqual(store.load(now: now).sessions.count, 1)
         let persisted = try JSONDecoder().decode([String: Session].self, from: XCTUnwrap(defaults.data(forKey: "chargingSessions.v2")))
-        XCTAssertNil(persisted["expired"])
-        XCTAssertNotNil(persisted["fresh"])
+        XCTAssertNil(persisted[expired])
+        XCTAssertNotNil(persisted[fresh])
     }
 }
