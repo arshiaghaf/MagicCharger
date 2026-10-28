@@ -32,7 +32,7 @@ final class PerformanceMeasurements: XCTestCase {
         let first = try usage(), start = Date()
         let timer = Timer.scheduledTimer(withTimeInterval: 30, repeats: true) { _ in scheduler.request() }
         timer.tolerance = 5
-        defer { timer.invalidate(); scheduler.suspend() }
+        defer { timer.invalidate(); scheduler.suspend(); monitor.onChange = nil }
         scheduler.request()
         if bursts {
             for burst in 0..<10 {
