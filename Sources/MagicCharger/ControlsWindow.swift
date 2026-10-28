@@ -9,7 +9,7 @@ final class ControlsWindow: NSWindowController, NSWindowDelegate {
     private let scrollView = NSScrollView()
     private let documentView = ControlsDocumentView()
     private let stack = NSStackView()
-    private let devices = DeviceCards()
+    private let devices: DeviceCards
     private let notifications: NotificationControls
     private let help = HelpControls()
     private let general: GeneralControls
@@ -23,7 +23,8 @@ final class ControlsWindow: NSWindowController, NSWindowDelegate {
     private var hasUserResized = false
     private var adjustingLayout = false
 
-    init(target: AnyObject, enable: Selector, test: Selector, updates: Selector, loginSettings: Selector, quit: Selector, preferences: MenuBarPreferences, alerts: NotificationPreferences, onChange: @escaping (MenuBarPreferences) -> Void, onAlertsChange: @escaping (NotificationPreferences) -> Void, onLoginChange: @escaping (Bool) -> Void, notificationSettingsReader: ((@escaping (NotificationReadiness) -> Void) -> Void)? = nil) {
+    init(target: AnyObject, enable: Selector, test: Selector, updates: Selector, loginSettings: Selector, quit: Selector, preferences: MenuBarPreferences, alerts: NotificationPreferences, onChange: @escaping (MenuBarPreferences) -> Void, onAlertsChange: @escaping (NotificationPreferences) -> Void, onLoginChange: @escaping (Bool) -> Void, notificationSettingsReader: ((@escaping (NotificationReadiness) -> Void) -> Void)? = nil, onDeviceMuteChange: @escaping (String, Bool) -> Void = { _, _ in }) {
+        devices = DeviceCards(onMuteChange: onDeviceMuteChange)
         onPreferencesChange = onChange
         notifications = NotificationControls(target: target, enable: enable, test: test, alerts: alerts, onAlertsChange: onAlertsChange, readSettings: notificationSettingsReader)
         general = GeneralControls(target: target, updates: updates, loginSettings: loginSettings, onLoginChange: onLoginChange)
@@ -81,9 +82,9 @@ final class ControlsWindow: NSWindowController, NSWindowDelegate {
     }
     required init?(coder: NSCoder) { fatalError("init(coder:) has not been implemented") }
 
-    func update(readings: [Reading], notificationStatus: String, feedback message: String, diagnostic: String) {
+    func update(readings: [Reading], notificationStatus: String, feedback message: String, diagnostic: String, deviceSettings: DeviceSettings? = nil, collectionMessage: String? = nil) {
         self.diagnostic = diagnostic
-        devices.update(readings)
+        devices.update(readings, settings: deviceSettings, collectionMessage: collectionMessage)
         notifications.update(status: notificationStatus, message: message)
         resizeForContent()
     }

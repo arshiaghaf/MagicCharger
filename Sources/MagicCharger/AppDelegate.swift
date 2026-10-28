@@ -90,7 +90,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, UNUserNotificationCent
         if !notificationFeedback.isEmpty { diagnostic += "\n" + notificationFeedback }
         diagnostic += "\n" + starts.lastDecisions.joined(separator: "\n")
         diagnostic += "\n\n" + notificationDetails + "\n" + foregroundPresentation
-        controls.update(readings: readings, notificationStatus: notificationStatus, feedback: notificationFeedback, diagnostic: diagnostic)
+        controls.update(readings: readings, notificationStatus: notificationStatus, feedback: notificationFeedback, diagnostic: diagnostic, deviceSettings: deviceSettings, collectionMessage: collectionMessage)
         for r in readings {
             menuBar.present(r, preferences: displayPreferences, target: self)
         }
@@ -126,7 +126,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate, UNUserNotificationCent
             self?.refresh()
         }, onAlertsChange: { [weak self] preferences in
             self?.updateAlertPreferences(preferences)
-        }, onLoginChange: { [weak self] enabled in self?.changeLaunchAtLogin(enabled) })
+        }, onLoginChange: { [weak self] enabled in self?.changeLaunchAtLogin(enabled) },
+           onDeviceMuteChange: { [weak self] id, muted in self?.setDeviceMuted(muted, for: id) })
         window = controls.window
     }
     @objc func viewReleases() {
