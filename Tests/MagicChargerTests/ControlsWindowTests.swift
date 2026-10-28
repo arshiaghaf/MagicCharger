@@ -42,7 +42,9 @@ final class ControlsWindowTests: XCTestCase {
         controller.update(readings: [], notificationStatus: "Notifications enabled.", feedback: "", diagnostic: "SIMULATED")
         let window = try XCTUnwrap(controller.window)
         window.contentView?.layoutSubtreeIfNeeded()
-        XCTAssertEqual(window.contentLayoutRect.width, 440)
+        XCTAssertEqual(window.contentLayoutRect.width, 500)
+        XCTAssertTrue(window.styleMask.contains(.resizable))
+        XCTAssertEqual(window.contentMinSize.width, 360)
         XCTAssertFalse(window.isVisible)
         window.close()
     }
