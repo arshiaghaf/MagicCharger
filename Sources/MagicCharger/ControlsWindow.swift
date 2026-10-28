@@ -115,7 +115,9 @@ final class ControlsWindow: NSWindowController, NSWindowDelegate {
         adjustingLayout = true
         defer { adjustingLayout = false }
         let chrome = window.frame.height - window.contentLayoutRect.height
-        let visible = window.screen?.visibleFrame ?? NSScreen.main?.visibleFrame ?? NSRect(x: 0, y: 0, width: 500, height: 700)
+        // With no WindowServer screen, allow the nominal 500 pt content plus
+        // the same 20 pt margin on each edge used for real visible frames.
+        let visible = window.screen?.visibleFrame ?? NSScreen.main?.visibleFrame ?? NSRect(x: 0, y: 0, width: 500 + 40, height: 700)
         let maxWidth = max(1, visible.width - 40)
         let maxHeight = Self.boundedContentHeight(requested: .greatestFiniteMagnitude, visible: visible.height, chrome: chrome)
         window.contentMinSize = NSSize(width: min(360, maxWidth), height: min(300, maxHeight))
