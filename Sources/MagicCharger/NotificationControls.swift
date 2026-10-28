@@ -82,9 +82,9 @@ final class NotificationControls: NSObject {
         enableButton = NSButton(title: "Enable Notifications…", target: target, action: enable)
         testButton = NSButton(title: "Send Test", target: target, action: test)
         testButton.isEnabled = false
-        let notificationTitle = NSTextField(labelWithString: "Notifications"); notificationTitle.font = .preferredFont(forTextStyle: .headline)
-        notificationLabel.font = .preferredFont(forTextStyle: .body); notificationLabel.textColor = .secondaryLabelColor
-        readinessDetail.font = .preferredFont(forTextStyle: .body); readinessDetail.textColor = .secondaryLabelColor
+        let notificationTitle = NSTextField(labelWithString: "Notifications"); notificationTitle.font = .systemFont(ofSize: 13, weight: .semibold)
+        notificationLabel.font = .systemFont(ofSize: 12); notificationLabel.textColor = .secondaryLabelColor
+        readinessDetail.font = .systemFont(ofSize: 12); readinessDetail.textColor = .secondaryLabelColor
         let notificationHeading = NSStackView(views: [notificationTitle, notificationLabel, readinessDetail]); notificationHeading.orientation = .vertical; notificationHeading.alignment = .leading; notificationHeading.spacing = 4
         notificationLabel.widthAnchor.constraint(equalTo: notificationHeading.widthAnchor).isActive = true
         let controls = NSStackView(views: [enableButton, testButton]); controls.orientation = .vertical; controls.alignment = .leading; controls.spacing = 8
@@ -99,7 +99,7 @@ final class NotificationControls: NSObject {
             alertToggles[kind] = toggle
         }
         for kind in AlertKind.allCases { alertOptions.addArrangedSubview(alertToggles[kind]!) }
-        feedback.font = .preferredFont(forTextStyle: .body); feedback.textColor = .secondaryLabelColor; feedback.isHidden = true
+        feedback.font = .systemFont(ofSize: 11); feedback.textColor = .secondaryLabelColor; feedback.isHidden = true
         view = NSStackView(views: [notificationHeading, alertOptions, controls, feedback]); view.orientation = .vertical; view.alignment = .leading; view.spacing = 10
         super.init()
         for toggle in alertToggles.values { toggle.target = self; toggle.action = #selector(changeAlerts) }
