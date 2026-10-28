@@ -13,26 +13,7 @@ fi
 
 VERSION="$(cat VERSION)"
 BUILD="${APP_BUILD:-$(cat BUILD_NUMBER)}"
-PLIST="$APP/Contents/Info.plist"
-if [ "$(/usr/libexec/PlistBuddy -c 'Print :CFBundleIdentifier' "$PLIST")" != "co.arshia.magiccharger" ] ||
-   [ "$(/usr/libexec/PlistBuddy -c 'Print :CFBundleShortVersionString' "$PLIST")" != "$VERSION" ] ||
-   [ "$(/usr/libexec/PlistBuddy -c 'Print :CFBundleVersion' "$PLIST")" != "$BUILD" ]; then
-    echo "Bundle identity/version does not match this checkout; rebuild before packaging" >&2
-    exit 2
-fi
-
-if [ "$(/usr/libexec/PlistBuddy -c 'Print :MagicChargerBuildConfiguration' "$PLIST" 2>/dev/null || true)" != release ]; then
-    echo "Packaging requires a release bundle; rebuild with CONFIGURATION=release sh build-app.sh" >&2
-    exit 2
-fi
-
-codesign --verify --strict "$APP"
-cmp LICENSE "$APP/Contents/Resources/LICENSE"
-ARCHITECTURES="$(lipo -archs "$APP/Contents/MacOS/MagicCharger")"
-if [ "$ARCHITECTURES" != arm64 ]; then
-    echo "Release DMG currently supports arm64 only; found: $ARCHITECTURES" >&2
-    exit 2
-fi
+sh scripts/validate-release-bundle.sh "$APP" "$VERSION" "$BUILD" LICENSE
 
 mkdir -p dist
 WORK="$(mktemp -d "${TMPDIR:-/tmp}/magic-charger-dmg.XXXXXX")"
