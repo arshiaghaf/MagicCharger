@@ -38,6 +38,7 @@ final class LifecycleRegressionTests: XCTestCase {
     func testBooleanFullWithoutSupportedFullEvidenceIsNotConsumedOrSubmitted() {
         var engine = Thresholds(); _ = engine.consume(r(99), now: now)
         XCTAssertEqual(engine.consume(r(100), now: now), [])
+        XCTAssertEqual(engine.sessions["fixture"]?.lastPercent, 100)
         XCTAssertFalse(engine.sessions["fixture"]?.sent.contains(100) ?? true)
         XCTAssertFalse(AlertEvidence.allows(r(100), kind: .full, now: now))
         let supported = r(100, state: .unknown, full: true)
@@ -62,4 +63,31 @@ final class LifecycleRegressionTests: XCTestCase {
         let restarted = Thresholds(sessions: engine.sessions, now: later)
         XCTAssertTrue(restarted.sessions.isEmpty)
     }
+    func testLaunchAtUnsupportedFullDoesNotInventALaterCrossing() {
+        var engine = Thresholds()
+        XCTAssertEqual(engine.consume(r(100), now: now), [])
+        XCTAssertEqual(engine.sessions["fixture"]?.lastPercent, 100)
+        XCTAssertFalse(engine.sessions["fixture"]?.sent.contains(100) ?? true)
+        XCTAssertEqual(engine.consume(r(100, state: .unknown, full: true), now: now), [])
+        // A real later below-full to full crossing remains eligible.
+        _ = engine.consume(r(99), now: now)
+        XCTAssertEqual(engine.consume(r(100, state: .unknown, full: true), now: now), [100])
+    }
+
+    func testPendingFullCrossingDoesNotSurviveLifecycleInterruptions() {
+        for interruption in 0...4 {
+            var engine = Thresholds()
+            _ = engine.consume(r(99), now: now)
+            _ = engine.consume(r(100), now: now)
+            switch interruption {
+            case 0: engine = Thresholds(sessions: engine.sessions, now: now)
+            case 1: engine.invalidateContinuity()
+            case 2: engine.retainContinuity(for: [])
+            case 3: _ = engine.consume(r(100, state: .unknown), now: now)
+            default: _ = engine.consume(r(100, at: now.addingTimeInterval(-100)), now: now)
+            }
+            XCTAssertEqual(engine.consume(r(100, state: .unknown, full: true), now: now), [], "interruption \(interruption)")
+        }
+    }
+
 }

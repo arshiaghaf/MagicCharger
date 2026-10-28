@@ -23,12 +23,15 @@ struct Session: Codable {
 struct Thresholds {
     var sessions: [String: Session] = [:]
     private var continuousCharging = Set<String>()
+    private var pendingFull = Set<String>()
     init(sessions: [String: Session] = [:], now: Date = Date()) {
         self.sessions = sessions
         prune(now: now)
     }
-    mutating func invalidateContinuity() { continuousCharging.removeAll() }
-    mutating func retainContinuity(for ids: Set<String>) { continuousCharging.formIntersection(ids) }
+    mutating func invalidateContinuity() { continuousCharging.removeAll(); pendingFull.removeAll() }
+    mutating func retainContinuity(for ids: Set<String>) {
+        continuousCharging.formIntersection(ids); pendingFull.formIntersection(ids)
+    }
     @discardableResult mutating func prune(now: Date = Date()) -> Bool {
         let count = sessions.count
         sessions = sessions.filter { (0..<30 * 86400).contains(now.timeIntervalSince($0.value.lastSeen)) }
@@ -36,37 +39,45 @@ struct Thresholds {
     }
     mutating func consume(_ r: Reading, now: Date = Date(), enabled: Set<Int> = [78,80,100]) -> [Int] {
         prune(now: now)
-        guard r.fresh(at: now) else { continuousCharging.remove(r.id); return [] }
-        let full = r.percent == 100 && r.fullChargeEvidence
+        guard r.fresh(at: now) else { continuousCharging.remove(r.id); pendingFull.remove(r.id); return [] }
+        let full = AlertEvidence.allows(r, kind: .full, now: now)
         let priorCharging = continuousCharging.contains(r.id)
         if r.state == .charging, let percent = r.percent, (0...100).contains(percent) { continuousCharging.insert(r.id) }
-        else if !full { continuousCharging.remove(r.id) }
+        else if !full { continuousCharging.remove(r.id); pendingFull.remove(r.id) }
         guard r.state != .unknown || full else { return [] }
         if r.state == .idle {
+            continuousCharging.remove(r.id); pendingFull.remove(r.id)
             var s = sessions[r.id] ?? Session(lastSeen: r.sampled)
             s.ended = true; s.lastSeen = r.sampled; s.lastPercent = nil
             sessions[r.id] = s
             return []
         }
-        guard let reportedPercent = r.percent, (0...100).contains(reportedPercent) else {
-            continuousCharging.remove(r.id)
+        guard let percent = r.percent, (0...100).contains(percent) else {
+            continuousCharging.remove(r.id); pendingFull.remove(r.id)
             return []
         }
-        // A Boolean charging indication at 100% is not the supported full-state
-        // evidence required by the full milestone. Keep that crossing available.
-        let percent = reportedPercent == 100 && !full ? 99 : reportedPercent
         var s = sessions[r.id] ?? Session(lastSeen: r.sampled)
         if s.ended { s.sent = []; s.lastPercent = nil; s.ended = false }
         // Establish a baseline on first observation, never send historical alerts.
         guard let previous = s.lastPercent, (0..<90).contains(r.sampled.timeIntervalSince(s.lastSeen)), priorCharging else {
-            s.sent.formUnion([78, 80, 100].filter { percent >= $0 })
+            pendingFull.remove(r.id)
+            s.sent.formUnion([78, 80, 100].filter { percent >= $0 && ($0 != 100 || full) })
             s.lastSeen = r.sampled; s.lastPercent = percent; sessions[r.id] = s
             return []
         }
-        let crossed = [78, 80, 100].filter { previous < $0 && percent >= $0 && !s.sent.contains($0) }
+        // Retain only an actually observed below-full crossing while supported
+        // full evidence is unavailable. Never fabricate 99% from a 100% baseline.
+        if percent < 100 { pendingFull.remove(r.id) }
+        else if previous < 100 && !s.sent.contains(100) { pendingFull.insert(r.id) }
+        var crossed = [78, 80].filter { previous < $0 && percent >= $0 && !s.sent.contains($0) }
+        if full && pendingFull.contains(r.id) && !s.sent.contains(100) { crossed.append(100) }
+        if full { pendingFull.remove(r.id) }
         s.sent.formUnion(crossed)
         // A short persisted cooldown also protects against noisy idle/charging flips.
-        let eligible = crossed.filter { enabled.contains($0) && now.timeIntervalSince(s.lastAlert[$0] ?? .distantPast) >= 300 }
+        let eligible = crossed.filter {
+            enabled.contains($0) && AlertEvidence.allows(r, kind: .milestone($0), now: now) &&
+            now.timeIntervalSince(s.lastAlert[$0] ?? .distantPast) >= 300
+        }
         if let highest = eligible.max() { for threshold in eligible { s.lastAlert[threshold] = now }; s.lastAlert[highest] = now }
         s.lastSeen = r.sampled; s.lastPercent = percent; sessions[r.id] = s
         return eligible.max().map { [$0] } ?? []
@@ -119,7 +130,7 @@ struct ChargingStarts {
 enum AlertEvidence {
     static func allows(_ reading: Reading, kind: AlertKind, now: Date) -> Bool {
         guard reading.fresh(at: now), let percent = reading.percent, (0...100).contains(percent) else { return false }
-        if kind == .full { return percent == 100 && reading.fullChargeEvidence }
+        if kind == .full { return reading.state != .idle && percent == 100 && reading.fullChargeEvidence }
         if kind == .soon && percent < 78 { return false }
         if kind == .target && percent < 80 { return false }
         return reading.state == .charging || (percent == 100 && reading.fullChargeEvidence)
