@@ -24,21 +24,13 @@ jobs:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           persist-credentials: false
-      - name: Toolchain
-        run: swift --version
-      - name: Build release app
-        run: CONFIGURATION=release sh build-app.sh
-      - name: Prepare disk image and checksum
-        run: sh scripts/package-dmg.sh
-      - name: Check packaging regressions
-        run: sh Tests/Packaging/check-artifacts.sh
-      - name: Verify release metadata
-        run: |
-          test "$(lipo -archs 'build/Magic Charger.app/Contents/MacOS/MagicCharger')" = arm64
-          test "$(/usr/libexec/PlistBuddy -c 'Print :CFBundleIdentifier' 'build/Magic Charger.app/Contents/Info.plist')" = co.arshia.magiccharger
-          test "$(/usr/libexec/PlistBuddy -c 'Print :CFBundleShortVersionString' 'build/Magic Charger.app/Contents/Info.plist')" = "$(cat VERSION)"
-          test "$(/usr/libexec/PlistBuddy -c 'Print :CFBundleVersion' 'build/Magic Charger.app/Contents/Info.plist')" = "$(cat BUILD_NUMBER)"
-          (cd dist && shasum -a 256 -c SHA256SUMS)
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+      - name: Verify release test gate
+        run: sh Tests/Packaging/check-release-gate.sh
+      - name: Test and prepare exact-source release artifacts
+        env:
+          EXPECTED_SOURCE_SHA: ${{ github.event.pull_request.head.sha || github.sha }}
+        run: sh scripts/prepare-release.sh
       - uses: actions/upload-artifact@v7.0.2
         if: github.event_name == 'workflow_dispatch'
         with:
@@ -46,5 +38,6 @@ jobs:
           path: |
             dist/*.dmg
             dist/SHA256SUMS
+            dist/BUILD-METADATA.txt
           if-no-files-found: error
           retention-days: 7
