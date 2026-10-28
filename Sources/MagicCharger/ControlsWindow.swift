@@ -11,6 +11,7 @@ final class ControlsWindow: NSWindowController, NSWindowDelegate {
     private let stack = NSStackView()
     private let devices = DeviceCards()
     private let notifications: NotificationControls
+    private let help = HelpControls()
     private let general: GeneralControls
     private let glyphToggle = NSButton(checkboxWithTitle: "Device icon", target: nil, action: nil)
     private let percentToggle = NSButton(checkboxWithTitle: "Percentage", target: nil, action: nil)
@@ -22,15 +23,19 @@ final class ControlsWindow: NSWindowController, NSWindowDelegate {
     private var hasUserResized = false
     private var adjustingLayout = false
 
-    init(target: AnyObject, enable: Selector, test: Selector, updates: Selector, loginSettings: Selector, quit: Selector, preferences: MenuBarPreferences, alerts: NotificationPreferences, onChange: @escaping (MenuBarPreferences) -> Void, onAlertsChange: @escaping (NotificationPreferences) -> Void, onLoginChange: @escaping (Bool) -> Void) {
+    init(target: AnyObject, enable: Selector, test: Selector, updates: Selector, loginSettings: Selector, quit: Selector, preferences: MenuBarPreferences, alerts: NotificationPreferences, onChange: @escaping (MenuBarPreferences) -> Void, onAlertsChange: @escaping (NotificationPreferences) -> Void, onLoginChange: @escaping (Bool) -> Void, notificationSettingsReader: ((@escaping (NotificationReadiness) -> Void) -> Void)? = nil) {
         onPreferencesChange = onChange
-        notifications = NotificationControls(target: target, enable: enable, test: test, alerts: alerts, onAlertsChange: onAlertsChange)
+        notifications = NotificationControls(target: target, enable: enable, test: test, alerts: alerts, onAlertsChange: onAlertsChange, readSettings: notificationSettingsReader)
         general = GeneralControls(target: target, updates: updates, loginSettings: loginSettings, onLoginChange: onLoginChange)
         let window = NSWindow(contentRect: NSRect(x: 0, y: 0, width: 500, height: 430),
                               styleMask: [.titled, .closable, .miniaturizable, .resizable], backing: .buffered, defer: false)
         window.title = "Magic Charger"
         window.isReleasedWhenClosed = false
         super.init(window: window)
+        help.onLayoutChange = { [weak self] in self?.resizeForContent() }
+        notifications.onLayoutChange = { [weak self] in self?.resizeForContent() }
+        NotificationCenter.default.addObserver(notifications, selector: #selector(NotificationControls.refreshSettings),
+            name: NSWindow.didBecomeKeyNotification, object: window)
         window.center()
         let content = window.contentView!
         stack.orientation = .vertical; stack.alignment = .leading; stack.spacing = 20
@@ -54,6 +59,8 @@ final class ControlsWindow: NSWindowController, NSWindowDelegate {
         let about = NSButton(title: "About", target: self, action: #selector(showAbout)); about.bezelStyle = .inline
         let footer = NSStackView(views: [details, about, quitButton]); footer.orientation = .vertical; footer.alignment = .leading; footer.spacing = 10
         for view in [heading, devices.view, menuOptions, notifications.view, general.view, footer] { stack.addArrangedSubview(view); view.widthAnchor.constraint(equalTo: stack.widthAnchor).isActive = true }
+        stack.insertArrangedSubview(help.view, at: stack.arrangedSubviews.count - 1)
+        help.view.widthAnchor.constraint(equalTo: stack.widthAnchor).isActive = true
         scrollView.hasVerticalScroller = true; scrollView.autohidesScrollers = true; scrollView.drawsBackground = false
         scrollView.translatesAutoresizingMaskIntoConstraints = false
         documentView.frame = NSRect(x: 0, y: 0, width: 500, height: 430)
