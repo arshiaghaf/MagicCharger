@@ -20,12 +20,16 @@ enum CollectionOutcome {
 // One registry dictionary is copied per service. Decode only these selected keys;
 // never retain or log the dictionary, personal product names or raw addresses.
 enum AccessoryProperties {
+    static func supports(product: String?, vendor: Int?) -> Bool {
+        guard let product = product, product.localizedCaseInsensitiveContains("Magic"),
+              vendor == 76 || vendor == 1452 else { return false }
+        return product.localizedCaseInsensitiveContains("Keyboard") || product.localizedCaseInsensitiveContains("Mouse")
+    }
     static func reading(_ properties: [String: Any], entryID: UInt64, identityKey: Data,
                         sampled: Date, os: OperatingSystemVersion) -> Reading? {
-        guard let product = properties["Product"] as? String, product.localizedCaseInsensitiveContains("Magic"),
-              let vendor = properties["VendorID"] as? Int, vendor == 76 || vendor == 1452 else { return nil }
+        guard let product = properties["Product"] as? String, let vendor = properties["VendorID"] as? Int,
+              supports(product: product, vendor: vendor) else { return nil }
         let keyboard = product.localizedCaseInsensitiveContains("Keyboard")
-        guard keyboard || product.localizedCaseInsensitiveContains("Mouse") else { return nil }
         let productID = properties["ProductID"] as? Int ?? 0
         let stableID = DeviceIdentity.stable(address: properties["DeviceAddress"] as? String, productID: productID, key: identityKey)
         let id = stableID ?? "registry:\(productID):\(entryID)"
@@ -57,6 +61,12 @@ func snapshot(identityKey: Data) -> CollectionOutcome {
         let service = IOIteratorNext(iterator)
         if service == 0 { break }
         defer { IOObjectRelease(service) }
+        // Metadata preflight avoids copying an unsupported service's table.
+        // The copied table revalidates this gate; charging values are never mixed
+        // with these separate metadata queries.
+        let product = IORegistryEntryCreateCFProperty(service, "Product" as CFString, kCFAllocatorDefault, 0)?.takeRetainedValue() as? String
+        let vendor = IORegistryEntryCreateCFProperty(service, "VendorID" as CFString, kCFAllocatorDefault, 0)?.takeRetainedValue() as? Int
+        guard AccessoryProperties.supports(product: product, vendor: vendor) else { continue }
         var properties: Unmanaged<CFMutableDictionary>?
         guard IORegistryEntryCreateCFProperties(service, &properties, kCFAllocatorDefault, 0) == KERN_SUCCESS,
               let dictionary = properties?.takeRetainedValue() as? [String: Any] else { return .failure(.propertiesUnavailable) }
