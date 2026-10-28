@@ -20,11 +20,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate, UNUserNotificationCent
     var lastPersistedAt = Date.distantPast
     var lastSessionSignature = ""
     var observations: [NSObjectProtocol] = []
-    var suspended = false
-    var refreshing = false
-    var refreshPending = false
-    var generation = 0
     var identityKey = Data()
+    var collectionMessage: String?
     var notificationStatus = "Notifications have not been enabled."
     var notificationFeedback = ""
     var notificationDetails = "Notification policy has not been read."
@@ -32,6 +29,16 @@ final class AppDelegate: NSObject, NSApplicationDelegate, UNUserNotificationCent
     var pollInterval: TimeInterval = 30
     let telemetryQueue = DispatchQueue(label: "local.magiccharger.telemetry", qos: .utility)
     let center = UNUserNotificationCenter.current()
+    lazy var collectionScheduler = CollectionScheduler(collect: { [weak self] completion in
+        guard let self = self else { return }
+        self.accessoryMonitor.observeRegistry()
+        let key = self.identityKey
+        self.telemetryQueue.async {
+            let outcome = snapshot(identityKey: key)
+            DispatchQueue.main.async { completion(outcome) }
+        }
+    }, schedule: { delay, action in DispatchQueue.main.asyncAfter(deadline: .now() + delay, execute: action) },
+       receive: { [weak self] outcome in self?.render(outcome) })
     let sessionStore = SessionStore(defaults: .standard)
     func applicationDidFinishLaunching(_ notification: Notification) {
         let launchEvent = NSAppleEventManager.shared().currentAppleEvent
@@ -48,8 +55,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate, UNUserNotificationCent
         if !launchedAtLogin { showSettings() }
         schedulePolling(30)
         let nc = NSWorkspace.shared.notificationCenter
-        observations.append(nc.addObserver(forName: NSWorkspace.willSleepNotification, object: nil, queue: .main) { [weak self] _ in self?.suspended = true; self?.generation += 1; self?.lifecycle.suspend(); self?.menuBar.clear() })
-        observations.append(nc.addObserver(forName: NSWorkspace.didWakeNotification, object: nil, queue: .main) { [weak self] _ in self?.suspended = false; self?.generation += 1; self?.lifecycle.resume(); self?.refresh() })
+        observations.append(nc.addObserver(forName: NSWorkspace.willSleepNotification, object: nil, queue: .main) { [weak self] _ in self?.lifecycle.suspend(); self?.collectionScheduler.suspend(); self?.menuBar.clear() })
+        observations.append(nc.addObserver(forName: NSWorkspace.didWakeNotification, object: nil, queue: .main) { [weak self] _ in self?.lifecycle.resume(); self?.collectionScheduler.resume() })
     }
     func applicationShouldHandleReopen(_ sender: NSApplication, hasVisibleWindows flag: Bool) -> Bool { showSettings(); return true }
     func applicationDidBecomeActive(_ notification: Notification) {
@@ -63,22 +70,11 @@ final class AppDelegate: NSObject, NSApplicationDelegate, UNUserNotificationCent
         timer = Timer.scheduledTimer(withTimeInterval: interval, repeats: true) { [weak self] _ in self?.refresh() }
         timer?.tolerance = interval == 10 ? 1 : 5
     }
-    func refresh() {
-        guard !suspended else { return }
-        guard !refreshing else { refreshPending = true; return }
-        refreshing = true
-        let requestGeneration = generation, key = identityKey
-        accessoryMonitor.observeRegistry()
-        telemetryQueue.async {
-            let readings = snapshot(identityKey: key)
-            DispatchQueue.main.async {
-                self.refreshing = false
-                if !self.suspended && requestGeneration == self.generation { self.render(readings) }
-                if self.refreshPending { self.refreshPending = false; self.refresh() }
-            }
-        }
-    }
-    func render(_ readings: [Reading]) {
+    func refresh() { collectionScheduler.request() }
+    func render(_ outcome: CollectionOutcome) {
+        let readings = outcome.readings
+        collectionMessage = outcome.message
+        window.subtitle = outcome.message ?? ""
         let selected = lifecycle.observe(readings, now: Date(), preferences: alertPreferences)
         for alert in selected {
             if alert.kind == .started { notifyStarted(alert.reading) }
@@ -86,7 +82,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, UNUserNotificationCent
         }
         let activeIDs = menuBar.retainChargingItems(for: readings)
         schedulePolling(activeIDs.isEmpty ? 30 : 10)
-        var diagnostic = readings.isEmpty ? "No supported accessories detected.\nMonitoring every 30 seconds." : readings.map { "\($0.name): \($0.percent.map { "\($0)%" } ?? "unknown") — \($0.state.rawValue)\n\($0.evidence)" }.joined(separator: "\n\n")
+        var diagnostic = readings.isEmpty ? (outcome.message ?? "No supported accessories detected.\nMonitoring every 30 seconds.") : readings.map { "\($0.name): \($0.percent.map { "\($0)%" } ?? "unknown") — \($0.state.rawValue)\n\($0.evidence)" }.joined(separator: "\n\n")
         diagnostic += "\n\nMenu-bar items: \(activeIDs.count); polling: \(Int(pollInterval)) seconds.\n" + notificationStatus
         if !notificationFeedback.isEmpty { diagnostic += "\n" + notificationFeedback }
         diagnostic += "\n" + starts.lastDecisions.joined(separator: "\n")
