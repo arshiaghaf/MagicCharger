@@ -21,6 +21,9 @@ final class TelemetryTests: XCTestCase {
         XCTAssertEqual(try read(properties).state, .unknown)
         properties["BatteryCharging"] = true; properties["IsCharging"] = false
         XCTAssertEqual(try read(properties).state, .unknown)
+        XCTAssertFalse(AccessoryProperties.supports(product: "Magic Trackpad", vendor: 76))
+        XCTAssertFalse(AccessoryProperties.supports(product: "Magic Keyboard", vendor: nil))
+        XCTAssertFalse(AccessoryProperties.supports(product: nil, vendor: 76))
         properties["Product"] = "Unrelated HID"
         XCTAssertNil(AccessoryProperties.reading(properties, entryID: 1, identityKey: Data(), sampled: now, os: os))
     }
