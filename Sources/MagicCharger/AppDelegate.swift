@@ -10,6 +10,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, UNUserNotificationCent
     var displayPreferences = MenuBarPreferences.load(.standard)
     var alertSettings = AlertSettings(preferences: .load(.standard))
     var alertPreferences: NotificationPreferences { alertSettings.preferences }
+    var deviceSettings = DeviceSettings(defaults: .standard)
     var window: NSWindow!
     var controls: ControlsWindow!
     var timer: Timer?
@@ -72,10 +73,12 @@ final class AppDelegate: NSObject, NSApplicationDelegate, UNUserNotificationCent
     }
     func refresh() { collectionScheduler.request() }
     func render(_ outcome: CollectionOutcome) {
-        let readings = outcome.readings
+        deviceSettings.register(outcome.readings)
+        let readings = deviceSettings.labeled(outcome.readings)
         collectionMessage = outcome.message
         window.subtitle = outcome.message ?? ""
-        let selected = lifecycle.observe(readings, now: Date(), preferences: alertPreferences)
+        let selected = lifecycle.observe(readings, now: Date(), preferences: alertPreferences,
+            allowsDevice: { !self.deviceSettings.isMuted($0) })
         for alert in selected {
             if alert.kind == .started { notifyStarted(alert.reading) }
             else { notify(alert.reading, threshold: alert.kind == .soon ? 78 : (alert.kind == .target ? 80 : 100)) }
@@ -97,6 +100,20 @@ final class AppDelegate: NSObject, NSApplicationDelegate, UNUserNotificationCent
         if signature != lastSessionSignature || (!activeIDs.isEmpty && Date().timeIntervalSince(lastPersistedAt) >= 60) {
             persistSessions(); lastSessionSignature = signature
         }
+    }
+    func setDeviceMuted(_ muted: Bool, for id: String) {
+        guard deviceSettings.isMuted(id) != muted else { return }
+        deviceSettings.setMuted(muted, for: id)
+        lifecycle.invalidateDevice(id)
+        if muted {
+            center.getPendingNotificationRequests { requests in
+                let identifiers = requests.filter {
+                    $0.identifier.hasPrefix("started-\(id)-") || $0.identifier.hasSuffix("-\(id)")
+                }.map { $0.identifier }
+                self.center.removePendingNotificationRequests(withIdentifiers: identifiers)
+            }
+        }
+        refresh()
     }
     func persistSessions() {
         sessionStore.save(engine.sessions); lastPersistedAt = Date()
