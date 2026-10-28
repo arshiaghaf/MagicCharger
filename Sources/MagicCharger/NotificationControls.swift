@@ -14,11 +14,11 @@ final class NotificationControls: NSObject {
         self.onAlertsChange = onAlertsChange
         enableButton = NSButton(title: "Enable Notifications…", target: target, action: enable)
         testButton = NSButton(title: "Send Test", target: target, action: test)
-        let notificationTitle = NSTextField(labelWithString: "Notifications"); notificationTitle.font = .systemFont(ofSize: 13, weight: .semibold)
-        notificationLabel.font = .systemFont(ofSize: 12); notificationLabel.textColor = .secondaryLabelColor
+        let notificationTitle = NSTextField(labelWithString: "Notifications"); notificationTitle.font = .preferredFont(forTextStyle: .headline)
+        notificationLabel.font = .preferredFont(forTextStyle: .body); notificationLabel.textColor = .secondaryLabelColor
         let notificationHeading = NSStackView(views: [notificationTitle, notificationLabel]); notificationHeading.orientation = .vertical; notificationHeading.alignment = .leading; notificationHeading.spacing = 4
         notificationLabel.widthAnchor.constraint(equalTo: notificationHeading.widthAnchor).isActive = true
-        let controls = NSStackView(views: [enableButton, testButton]); controls.spacing = 10
+        let controls = NSStackView(views: [enableButton, testButton]); controls.orientation = .vertical; controls.alignment = .leading; controls.spacing = 8
         enableButton.keyEquivalent = "e"; enableButton.keyEquivalentModifierMask = .command
         testButton.keyEquivalent = "t"; testButton.keyEquivalentModifierMask = .command
         enableButton.setAccessibilityHelp("Request notification permission or open macOS notification settings.")
@@ -29,13 +29,8 @@ final class NotificationControls: NSObject {
             toggle.state = alerts.allows(kind) ? .on : .off
             alertToggles[kind] = toggle
         }
-        let kinds = AlertKind.allCases
-        for offset in stride(from: 0, to: kinds.count, by: 2) {
-            let row = NSStackView(views: [alertToggles[kinds[offset]]!, alertToggles[kinds[offset + 1]]!])
-            row.spacing = 12; row.distribution = .fillEqually
-            alertOptions.addArrangedSubview(row); row.widthAnchor.constraint(equalTo: alertOptions.widthAnchor).isActive = true
-        }
-        feedback.font = .systemFont(ofSize: 11); feedback.textColor = .secondaryLabelColor; feedback.isHidden = true
+        for kind in AlertKind.allCases { alertOptions.addArrangedSubview(alertToggles[kind]!) }
+        feedback.font = .preferredFont(forTextStyle: .body); feedback.textColor = .secondaryLabelColor; feedback.isHidden = true
         view = NSStackView(views: [notificationHeading, alertOptions, controls, feedback]); view.orientation = .vertical; view.alignment = .leading; view.spacing = 10
         super.init()
         for toggle in alertToggles.values { toggle.target = self; toggle.action = #selector(changeAlerts) }
