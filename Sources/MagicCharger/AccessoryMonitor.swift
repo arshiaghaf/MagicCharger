@@ -68,6 +68,60 @@ func snapshot(identityKey: Data) -> CollectionOutcome {
     return .success(reconciled(result))
 }
 
+struct RegistryService {
+    let id: UInt64
+    let object: io_service_t
+}
+
+// Keep native handles behind injectable operations so fault paths can be tested
+// without creating devices, changing hardware or registering real callbacks.
+struct RegistryOperations {
+    var createPort: () -> IONotificationPortRef?
+    var matching: (IONotificationPortRef, String, UnsafeMutableRawPointer) -> io_iterator_t?
+    var services: () -> [RegistryService]?
+    var interest: (IONotificationPortRef, io_service_t, UnsafeMutableRawPointer) -> io_object_t?
+    var release: (io_object_t) -> Void
+    var destroyPort: (IONotificationPortRef) -> Void
+
+    static let live = RegistryOperations(createPort: {
+        let port = IONotificationPortCreate(kIOMainPortDefault)
+        if let port = port { IONotificationPortSetDispatchQueue(port, .main) }
+        return port
+    }, matching: { port, kind, context in
+        var iterator: io_iterator_t = 0
+        let code = IOServiceAddMatchingNotification(port, kind, IOServiceMatching("AppleDeviceManagementHIDEventService"), { context, iterator in
+            while true { let object = IOIteratorNext(iterator); if object == 0 { break }; IOObjectRelease(object) }
+            guard let context = context else { return }
+            Unmanaged<AccessoryMonitor>.fromOpaque(context).takeUnretainedValue().registryChanged()
+        }, context, &iterator)
+        guard code == KERN_SUCCESS else { if iterator != 0 { IOObjectRelease(iterator) }; return nil }
+        while true { let object = IOIteratorNext(iterator); if object == 0 { break }; IOObjectRelease(object) }
+        return iterator
+    }, services: {
+        var iterator: io_iterator_t = 0
+        guard IOServiceGetMatchingServices(kIOMainPortDefault, IOServiceMatching("AppleDeviceManagementHIDEventService"), &iterator) == KERN_SUCCESS else { return nil }
+        defer { IOObjectRelease(iterator) }
+        var result: [RegistryService] = []
+        while true {
+            let service = IOIteratorNext(iterator); if service == 0 { break }
+            var id: UInt64 = 0
+            guard IORegistryEntryGetRegistryEntryID(service, &id) == KERN_SUCCESS else {
+                IOObjectRelease(service); result.forEach { IOObjectRelease($0.object) }; return nil
+            }
+            result.append(RegistryService(id: id, object: service))
+        }
+        return result
+    }, interest: { port, service, context in
+        var interest: io_object_t = 0
+        let code = IOServiceAddInterestNotification(port, service, kIOGeneralInterest, { context, _, _, _ in
+            guard let context = context else { return }
+            Unmanaged<AccessoryMonitor>.fromOpaque(context).takeUnretainedValue().onChange?()
+        }, context, &interest)
+        guard code == KERN_SUCCESS else { if interest != 0 { IOObjectRelease(interest) }; return nil }
+        return interest
+    }, release: { IOObjectRelease($0) }, destroyPort: { IONotificationPortDestroy($0) })
+}
+
 final class AccessoryMonitor {
     var onChange: (() -> Void)?
     private var matchingIterators: [String: io_iterator_t] = [:]
@@ -75,58 +129,37 @@ final class AccessoryMonitor {
     private var interests: [UInt64: io_object_t] = [:]
     private var recovery = ObservationRecovery()
     private let now: () -> Date
-    init(now: @escaping () -> Date = Date.init) { self.now = now }
-
+    private let operations: RegistryOperations
+    init(now: @escaping () -> Date = Date.init, operations: RegistryOperations = .live) {
+        self.now = now; self.operations = operations
+    }
+    func registryChanged() { recovery.invalidate(); onChange?() }
     func observeRegistry() {
         let time = now()
         guard recovery.shouldAttempt(at: time) else { return }
         var succeeded = true
-        if port == nil {
-            port = IONotificationPortCreate(kIOMainPortDefault)
-            if let port = port { IONotificationPortSetDispatchQueue(port, .main) }
-        }
+        if port == nil { port = operations.createPort() }
         guard let port = port else { recovery.finish(success: false, now: time); return }
+        let context = Unmanaged.passUnretained(self).toOpaque()
         for kind in [kIOFirstMatchNotification, kIOTerminatedNotification] where matchingIterators[kind] == nil {
-            var iterator: io_iterator_t = 0
-            let code = IOServiceAddMatchingNotification(port, kind, IOServiceMatching("AppleDeviceManagementHIDEventService"), { context, iterator in
-                while true { let object = IOIteratorNext(iterator); if object == 0 { break }; IOObjectRelease(object) }
-                guard let context = context else { return }
-                let owner = Unmanaged<AccessoryMonitor>.fromOpaque(context).takeUnretainedValue()
-                owner.recovery.invalidate(); owner.onChange?()
-            }, Unmanaged.passUnretained(self).toOpaque(), &iterator)
-            if code == KERN_SUCCESS {
-                matchingIterators[kind] = iterator
-                while true { let object = IOIteratorNext(iterator); if object == 0 { break }; IOObjectRelease(object) }
-            } else { if iterator != 0 { IOObjectRelease(iterator) }; succeeded = false }
+            if let iterator = operations.matching(port, kind, context) { matchingIterators[kind] = iterator }
+            else { succeeded = false }
         }
-        var iterator: io_iterator_t = 0
-        guard IOServiceGetMatchingServices(kIOMainPortDefault, IOServiceMatching("AppleDeviceManagementHIDEventService"), &iterator) == KERN_SUCCESS else {
-            recovery.finish(success: false, now: time); return
-        }
-        defer { IOObjectRelease(iterator) }
+        guard let services = operations.services() else { recovery.finish(success: false, now: time); return }
+        defer { services.forEach { operations.release($0.object) } }
         var present = Set<UInt64>()
-        while true {
-            let service = IOIteratorNext(iterator); if service == 0 { break }
-            defer { IOObjectRelease(service) }
-            var id: UInt64 = 0
-            guard IORegistryEntryGetRegistryEntryID(service, &id) == KERN_SUCCESS else { succeeded = false; continue }
-            present.insert(id)
-            guard interests[id] == nil else { continue }
-            var interest: io_object_t = 0
-            let code = IOServiceAddInterestNotification(port, service, kIOGeneralInterest, { context, _, _, _ in
-                guard let context = context else { return }
-                let owner = Unmanaged<AccessoryMonitor>.fromOpaque(context).takeUnretainedValue()
-                owner.onChange?()
-            }, Unmanaged.passUnretained(self).toOpaque(), &interest)
-            if code == KERN_SUCCESS { interests[id] = interest }
-            else { if interest != 0 { IOObjectRelease(interest) }; succeeded = false }
+        for service in services {
+            present.insert(service.id)
+            guard interests[service.id] == nil else { continue }
+            if let interest = operations.interest(port, service.object, context) { interests[service.id] = interest }
+            else { succeeded = false }
         }
-        for id in Array(interests.keys) where !present.contains(id) { IOObjectRelease(interests.removeValue(forKey: id)!) }
+        for id in Array(interests.keys) where !present.contains(id) { operations.release(interests.removeValue(forKey: id)!) }
         recovery.finish(success: succeeded, now: time)
     }
     deinit {
-        interests.values.forEach { IOObjectRelease($0) }
-        matchingIterators.values.forEach { IOObjectRelease($0) }
-        if let port = port { IONotificationPortDestroy(port) }
+        interests.values.forEach(operations.release)
+        matchingIterators.values.forEach(operations.release)
+        if let port = port { operations.destroyPort(port) }
     }
 }
