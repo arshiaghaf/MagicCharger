@@ -26,10 +26,10 @@ final class GeneralControls: NSObject {
          onLoginChange: @escaping (Bool) -> Void) {
         self.onLoginChange = onLoginChange
         loginSettingsButton = NSButton(title: "Open Login Items…", target: target, action: loginSettings)
-        let generalTitle = NSTextField(labelWithString: "General"); generalTitle.font = .preferredFont(forTextStyle: .headline)
+        let generalTitle = NSTextField(labelWithString: "General"); generalTitle.font = .systemFont(ofSize: 13, weight: .semibold)
         loginToggle.allowsMixedState = true
         loginToggle.setAccessibilityHelp("Start Magic Charger automatically when you sign in. Off until you enable it.")
-        loginHint.font = .preferredFont(forTextStyle: .body); loginHint.textColor = .secondaryLabelColor
+        loginHint.font = .systemFont(ofSize: 11); loginHint.textColor = .secondaryLabelColor
         loginSettingsButton.bezelStyle = .inline; loginSettingsButton.isHidden = true
         loginSettingsButton.setAccessibilityHelp("Open macOS Login Items settings to approve Magic Charger.")
         cancelLoginButton.bezelStyle = .inline; cancelLoginButton.isHidden = true
@@ -37,7 +37,7 @@ final class GeneralControls: NSObject {
         let updatesButton = NSButton(title: "View Releases…", target: target, action: updates)
         updatesButton.keyEquivalent = "u"; updatesButton.keyEquivalentModifierMask = .command
         updatesButton.setAccessibilityHelp("Open the official Magic Charger releases page in your browser.")
-        updateFeedback.font = .preferredFont(forTextStyle: .body); updateFeedback.textColor = .secondaryLabelColor; updateFeedback.isHidden = true
+        updateFeedback.font = .systemFont(ofSize: 11); updateFeedback.textColor = .secondaryLabelColor; updateFeedback.isHidden = true
         view = NSStackView(views: [generalTitle, loginToggle, loginHint, loginSettingsButton, cancelLoginButton, updatesButton, updateFeedback]); view.orientation = .vertical; view.alignment = .leading; view.spacing = 7
         super.init()
         loginToggle.target = self; loginToggle.action = #selector(changeLogin(_:))

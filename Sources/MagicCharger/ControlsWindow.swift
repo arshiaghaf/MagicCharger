@@ -31,8 +31,6 @@ final class ControlsWindow: NSWindowController, NSWindowDelegate {
         window.title = "Magic Charger"
         window.isReleasedWhenClosed = false
         super.init(window: window)
-        window.contentMinSize = NSSize(width: 360, height: 300)
-        window.autorecalculatesKeyViewLoop = true
         window.center()
         let content = window.contentView!
         stack.orientation = .vertical; stack.alignment = .leading; stack.spacing = 20
@@ -69,6 +67,9 @@ final class ControlsWindow: NSWindowController, NSWindowDelegate {
             stack.trailingAnchor.constraint(equalTo: documentView.trailingAnchor, constant: -24),
             stack.topAnchor.constraint(equalTo: documentView.topAnchor, constant: 26)
         ])
+        useReadableFonts(in: stack)
+        window.contentMinSize = NSSize(width: 360, height: 300)
+        window.autorecalculatesKeyViewLoop = true
         window.delegate = self
     }
     required init?(coder: NSCoder) { fatalError("init(coder:) has not been implemented") }
@@ -100,6 +101,14 @@ final class ControlsWindow: NSWindowController, NSWindowDelegate {
         resizeForContent()
     }
     func windowDidChangeScreen(_ notification: Notification) { resizeForContent() }
+
+    private func useReadableFonts(in view: NSView) {
+        if let field = view as? NSTextField, let font = field.font,
+           font.pointSize < NSFont.preferredFont(forTextStyle: .body).pointSize {
+            field.font = NSFontManager.shared.convert(font, toSize: NSFont.preferredFont(forTextStyle: .body).pointSize)
+        }
+        for child in view.subviews { useReadableFonts(in: child) }
+    }
 
     private func resizeForContent() {
         guard !adjustingLayout, let window = window, let content = window.contentView else { return }
