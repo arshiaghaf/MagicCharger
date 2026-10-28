@@ -1,4 +1,52 @@
 import AppKit
+import UserNotifications
+
+struct NotificationReadiness: Equatable {
+    let authorization: UNAuthorizationStatus
+    let alerts: UNNotificationSetting
+    let style: UNAlertStyle
+    let notificationCenter: UNNotificationSetting
+    let sound: UNNotificationSetting
+    let scheduledDelivery: UNNotificationSetting
+
+    init(authorization: UNAuthorizationStatus, alerts: UNNotificationSetting, style: UNAlertStyle,
+         notificationCenter: UNNotificationSetting, sound: UNNotificationSetting, scheduledDelivery: UNNotificationSetting) {
+        self.authorization = authorization; self.alerts = alerts; self.style = style
+        self.notificationCenter = notificationCenter; self.sound = sound; self.scheduledDelivery = scheduledDelivery
+    }
+
+    init(_ settings: UNNotificationSettings) {
+        self.init(authorization: settings.authorizationStatus, alerts: settings.alertSetting, style: settings.alertStyle,
+            notificationCenter: settings.notificationCenterSetting, sound: settings.soundSetting, scheduledDelivery: settings.scheduledDeliverySetting)
+    }
+
+    var canSubmit: Bool { authorization == .authorized || authorization == .provisional }
+    var needsPermission: Bool { authorization == .notDetermined }
+    var summary: String {
+        switch authorization {
+        case .notDetermined: return "Off · Enable Notifications to receive alerts."
+        case .denied: return "Blocked by macOS · Allow notifications in Notification Settings."
+        case .provisional: return "Quiet delivery · Provisional permission does not enable banners."
+        case .authorized:
+            guard alerts == .enabled else { return alerts == .disabled ? "Banners and alerts are off in macOS." : "Banner and alert availability is unknown." }
+            switch style {
+            case .banner: return "Banners enabled in macOS."
+            case .alert: return "Alerts enabled in macOS."
+            case .none: return "Banners and alerts are off in macOS."
+            @unknown default: return "Banner and alert availability is unknown."
+            }
+        default: return "Notification permission unavailable · Open Notification Settings."
+        }
+    }
+    var detail: String {
+        guard canSubmit else { return "Notifications are optional. You choose which alerts to enable." }
+        func state(_ setting: UNNotificationSetting) -> String {
+            switch setting { case .enabled: return "on"; case .disabled: return "off"; case .notSupported: return "unavailable"; @unknown default: return "unknown" }
+        }
+        let scheduled = scheduledDelivery == .enabled ? " Scheduled delivery may delay alerts." : ""
+        return "Notification Center: \(state(notificationCenter)) · Sound: \(state(sound)).\(scheduled) Focus and screen sharing may suppress presentation."
+    }
+}
 
 final class NotificationControls: NSObject {
     let view: NSStackView
@@ -7,17 +55,29 @@ final class NotificationControls: NSObject {
     private let testButton: NSButton
     private let feedback = NSTextField(wrappingLabelWithString: "")
     private var alertToggles: [AlertKind: NSButton] = [:]
+    private let readSettings: (@escaping (NotificationReadiness) -> Void) -> Void
+    private var lastStatus: String?
+    private var settingsGeneration = 0
+    var onLayoutChange: (() -> Void)?
+    private let readinessDetail = NSTextField(wrappingLabelWithString: "")
     private let onAlertsChange: (NotificationPreferences) -> Void
 
     init(target: AnyObject, enable: Selector, test: Selector, alerts: NotificationPreferences,
-         onAlertsChange: @escaping (NotificationPreferences) -> Void) {
+         onAlertsChange: @escaping (NotificationPreferences) -> Void,
+         readSettings: @escaping (@escaping (NotificationReadiness) -> Void) -> Void = { completion in
+             UNUserNotificationCenter.current().getNotificationSettings { completion(NotificationReadiness($0)) }
+         }) {
         self.onAlertsChange = onAlertsChange
+        self.readSettings = readSettings
         enableButton = NSButton(title: "Enable Notifications…", target: target, action: enable)
         testButton = NSButton(title: "Send Test", target: target, action: test)
         let notificationTitle = NSTextField(labelWithString: "Notifications"); notificationTitle.font = .systemFont(ofSize: 13, weight: .semibold)
         notificationLabel.font = .systemFont(ofSize: 12); notificationLabel.textColor = .secondaryLabelColor
-        let notificationHeading = NSStackView(views: [notificationTitle, notificationLabel]); notificationHeading.orientation = .vertical; notificationHeading.alignment = .leading; notificationHeading.spacing = 4
+        readinessDetail.font = .systemFont(ofSize: 12); readinessDetail.textColor = .secondaryLabelColor
+        let notificationHeading = NSStackView(views: [notificationTitle, notificationLabel, readinessDetail]); notificationHeading.orientation = .vertical; notificationHeading.alignment = .leading; notificationHeading.spacing = 4
         notificationLabel.widthAnchor.constraint(equalTo: notificationHeading.widthAnchor).isActive = true
+        readinessDetail.widthAnchor.constraint(equalTo: notificationHeading.widthAnchor).isActive = true
+        testButton.isEnabled = false
         let controls = NSStackView(views: [enableButton, testButton]); controls.spacing = 10
         enableButton.keyEquivalent = "e"; enableButton.keyEquivalentModifierMask = .command
         testButton.keyEquivalent = "t"; testButton.keyEquivalentModifierMask = .command
@@ -45,15 +105,32 @@ final class NotificationControls: NSObject {
     }
 
     func update(status: String, message: String) {
-        let enabled = status == "Notifications enabled."
-        notificationLabel.stringValue = enabled ? "Allowed by macOS" : (status.contains("denied") ? "Blocked by macOS · Open Notification Settings to allow alerts" : (status.contains("not requested") ? "Off · Enable Notifications to receive alerts" : "Permission unavailable · Open Notification Settings"))
-        enableButton.title = status.contains("not requested") ? "Enable Notifications…" : "Notification Settings…"
-        enableButton.isHidden = false
-        testButton.isEnabled = enabled
-        if message.hasPrefix("Test submitted") { feedback.stringValue = "Test sent to macOS. Check Notification Center if needed."; feedback.isHidden = false }
+        if status != lastStatus { lastStatus = status; refreshSettings() }
+        if message.hasPrefix("Test submitted") { feedback.stringValue = "Test submitted to macOS. Submission does not confirm a banner or sound. Check Notification Center and macOS settings."; feedback.isHidden = false }
         else if message.hasPrefix("Open Notifications") || message.hasPrefix("System Settings") { feedback.stringValue = message; feedback.isHidden = false }
         else if message.hasPrefix("Test not sent") || message.contains("failed") { feedback.stringValue = "Notification wasn’t sent. Open Notification Settings, then try again."; feedback.isHidden = false }
         else { feedback.isHidden = true }
+    }
+
+    deinit { NotificationCenter.default.removeObserver(self) }
+
+    @objc func refreshSettings() {
+        settingsGeneration += 1
+        let generation = settingsGeneration
+        readSettings { [weak self] readiness in
+            DispatchQueue.main.async {
+                guard let self = self, generation == self.settingsGeneration else { return }
+                self.apply(readiness)
+            }
+        }
+    }
+
+    func apply(_ readiness: NotificationReadiness) {
+        notificationLabel.stringValue = readiness.summary
+        readinessDetail.stringValue = readiness.detail
+        enableButton.title = readiness.needsPermission ? "Enable Notifications…" : "Notification Settings…"
+        testButton.isEnabled = readiness.canSubmit
+        onLayoutChange?()
     }
 
     @objc private func changeAlerts() {
