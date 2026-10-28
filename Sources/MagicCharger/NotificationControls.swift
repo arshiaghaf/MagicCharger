@@ -48,6 +48,16 @@ struct NotificationReadiness: Equatable {
     }
 }
 
+protocol NotificationSettingsReading: AnyObject {
+    func readNotificationReadiness(_ completion: @escaping (NotificationReadiness) -> Void)
+}
+
+extension AppDelegate: NotificationSettingsReading {
+    func readNotificationReadiness(_ completion: @escaping (NotificationReadiness) -> Void) {
+        center.getNotificationSettings { completion(NotificationReadiness($0)) }
+    }
+}
+
 final class NotificationControls: NSObject {
     let view: NSStackView
     private let notificationLabel = NSTextField(wrappingLabelWithString: "Checking permission…")
@@ -64,11 +74,11 @@ final class NotificationControls: NSObject {
 
     init(target: AnyObject, enable: Selector, test: Selector, alerts: NotificationPreferences,
          onAlertsChange: @escaping (NotificationPreferences) -> Void,
-         readSettings: @escaping (@escaping (NotificationReadiness) -> Void) -> Void = { completion in
-             UNUserNotificationCenter.current().getNotificationSettings { completion(NotificationReadiness($0)) }
-         }) {
+         readSettings: ((@escaping (NotificationReadiness) -> Void) -> Void)? = nil) {
         self.onAlertsChange = onAlertsChange
-        self.readSettings = readSettings
+        self.readSettings = readSettings ?? { [weak target] completion in
+            (target as? NotificationSettingsReading)?.readNotificationReadiness(completion)
+        }
         enableButton = NSButton(title: "Enable Notifications…", target: target, action: enable)
         testButton = NSButton(title: "Send Test", target: target, action: test)
         testButton.isEnabled = false
