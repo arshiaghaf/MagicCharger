@@ -27,23 +27,20 @@ esac
 MOUNT_DIR="$(mktemp -d "${TMPDIR:-/tmp}/magic-charger-cask.XXXXXX")"
 MOUNTED=0
 cleanup() {
-    if [ "$MOUNTED" -eq 1 ]; then hdiutil detach -quiet "$MOUNT_DIR" >/dev/null 2>&1 || true; fi
+    if [ "$MOUNTED" -eq 1 ]; then
+        hdiutil detach -quiet "$MOUNT_DIR" || {
+            echo "Could not detach release image at $MOUNT_DIR; retaining it for recovery" >&2
+            return
+        }
+    fi
     rmdir "$MOUNT_DIR" 2>/dev/null || true
 }
-trap cleanup EXIT HUP INT TERM
-hdiutil attach -quiet -readonly -nobrowse -mountpoint "$MOUNT_DIR" "$ASSET"
+trap cleanup EXIT
+trap 'exit 1' HUP INT TERM
+hdiutil attach -quiet -readonly -nobrowse -noautoopen -mountpoint "$MOUNT_DIR" "$ASSET"
 MOUNTED=1
-PLIST="$MOUNT_DIR/Magic Charger.app/Contents/Info.plist"
-if [ "$(/usr/libexec/PlistBuddy -c 'Print :CFBundleIdentifier' "$PLIST")" != co.arshia.magiccharger ] ||
-   [ "$(/usr/libexec/PlistBuddy -c 'Print :CFBundleShortVersionString' "$PLIST")" != "$VERSION" ]; then
-    echo "Published DMG bundle identity/version does not match the requested release" >&2
-    exit 2
-fi
-ARCHITECTURES="$(lipo -archs "$MOUNT_DIR/Magic Charger.app/Contents/MacOS/MagicCharger")"
-if [ "$ARCHITECTURES" != arm64 ]; then
-    echo "Published DMG must contain an arm64-only app; found: $ARCHITECTURES" >&2
-    exit 2
-fi
+sh scripts/validate-release-bundle.sh "$MOUNT_DIR/Magic Charger.app" "$VERSION" \
+    "${APP_BUILD:-$(cat BUILD_NUMBER)}" LICENSE
 hdiutil detach -quiet "$MOUNT_DIR"
 MOUNTED=0
 rmdir "$MOUNT_DIR"

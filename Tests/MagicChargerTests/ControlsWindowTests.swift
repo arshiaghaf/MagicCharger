@@ -38,11 +38,13 @@ final class ControlsWindowTests: XCTestCase {
             test: #selector(NSApplication.terminate(_:)), updates: #selector(NSApplication.terminate(_:)),
             loginSettings: #selector(NSApplication.terminate(_:)), quit: #selector(NSApplication.terminate(_:)),
             preferences: MenuBarPreferences(), alerts: NotificationPreferences(),
-            onChange: { _ in }, onAlertsChange: { _ in }, onLoginChange: { _ in })
+            onChange: { _ in }, onAlertsChange: { _ in }, onLoginChange: { _ in }, notificationSettingsReader: { _ in })
         controller.update(readings: [], notificationStatus: "Notifications enabled.", feedback: "", diagnostic: "SIMULATED")
         let window = try XCTUnwrap(controller.window)
         window.contentView?.layoutSubtreeIfNeeded()
-        XCTAssertEqual(window.contentLayoutRect.width, 440)
+        XCTAssertEqual(window.contentLayoutRect.width, 500)
+        XCTAssertTrue(window.styleMask.contains(.resizable))
+        XCTAssertEqual(window.contentMinSize.width, 360)
         XCTAssertFalse(window.isVisible)
         window.close()
     }
@@ -53,7 +55,7 @@ final class ControlsWindowTests: XCTestCase {
             test: #selector(NSApplication.terminate(_:)), updates: #selector(NSApplication.terminate(_:)),
             loginSettings: #selector(NSApplication.terminate(_:)), quit: #selector(NSApplication.terminate(_:)),
             preferences: MenuBarPreferences(), alerts: NotificationPreferences(),
-            onChange: { _ in }, onAlertsChange: { _ in }, onLoginChange: { _ in })
+            onChange: { _ in }, onAlertsChange: { _ in }, onLoginChange: { _ in }, notificationSettingsReader: { _ in })
         let reading = Reading(id: "SIMULATED", name: "Magic Mouse", symbol: "magicmouse", percent: 79,
             state: .charging, sampled: Date(), evidence: "SIMULATED")
         controller.update(readings: [reading], notificationStatus: "Notifications enabled.", feedback: "", diagnostic: "SIMULATED")
@@ -80,4 +82,22 @@ final class ControlsWindowTests: XCTestCase {
         XCTAssertTrue(buttonTitles.isSuperset(of: ["Send Test", "Quit Magic Charger", "Launch at Login", "Device icon", "Percentage", "Status emoji"]))
         window.close()
     }
+    func testHelpIsOptionalInlineAndDoesNotOpenAWindowOrRequestPermission() throws {
+        let help = HelpControls()
+        let button = try XCTUnwrap(help.view.arrangedSubviews.first as? NSButton)
+        let explanation = try XCTUnwrap(help.view.arrangedSubviews.last as? NSTextField)
+        var layouts = 0
+        help.onLayoutChange = { layouts += 1 }
+        XCTAssertTrue(explanation.isHidden)
+        XCTAssertNil(help.view.window)
+        button.performClick(nil)
+        XCTAssertFalse(explanation.isHidden)
+        XCTAssertTrue(explanation.stringValue.contains("Reopen Magic Charger from Finder or Spotlight"))
+        XCTAssertTrue(explanation.stringValue.contains("cannot stop charging automatically"))
+        button.performClick(nil)
+        XCTAssertTrue(explanation.isHidden)
+        XCTAssertEqual(layouts, 2)
+        XCTAssertNil(help.view.window)
+    }
+
 }
