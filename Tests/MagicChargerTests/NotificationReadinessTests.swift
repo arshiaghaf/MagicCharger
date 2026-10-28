@@ -67,4 +67,25 @@ final class NotificationReadinessTests: XCTestCase {
         XCTAssertEqual(buttons.first { $0.title == "Send Test" }?.isEnabled, false)
     }
 
+    @MainActor func testDefaultReaderUsesOnlyTheTargetsExplicitPolicySource() async {
+        final class PolicyTarget: NSObject, NotificationSettingsReading {
+            let readiness: NotificationReadiness
+            var reads = 0
+            init(_ readiness: NotificationReadiness) { self.readiness = readiness }
+            func readNotificationReadiness(_ completion: @escaping (NotificationReadiness) -> Void) {
+                reads += 1; completion(readiness)
+            }
+        }
+        let target = PolicyTarget(policy(.denied))
+        let controls = NotificationControls(target: target, enable: #selector(NSApplication.terminate(_:)),
+            test: #selector(NSApplication.terminate(_:)), alerts: NotificationPreferences(), onAlertsChange: { _ in })
+        let applied = expectation(description: "Explicit policy source applied")
+        controls.onLayoutChange = { applied.fulfill() }
+        controls.update(status: "permission changed", message: "")
+        XCTAssertEqual(target.reads, 1)
+        await fulfillment(of: [applied], timeout: 1)
+        func descendants(_ view: NSView) -> [NSView] { [view] + view.subviews.flatMap(descendants) }
+        XCTAssertEqual(descendants(controls.view).compactMap { $0 as? NSButton }.first { $0.title == "Send Test" }?.isEnabled, false)
+    }
+
 }

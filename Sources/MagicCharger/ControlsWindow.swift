@@ -1,6 +1,5 @@
 import AppKit
 import ServiceManagement
-import UserNotifications
 
 private final class ControlsDocumentView: NSView {
     override var isFlipped: Bool { true }
@@ -22,9 +21,7 @@ final class ControlsWindow: NSWindowController {
     private var diagnostic = ""
     private var detailsWindow: NSWindow?
 
-    init(target: AnyObject, enable: Selector, test: Selector, updates: Selector, loginSettings: Selector, quit: Selector, preferences: MenuBarPreferences, alerts: NotificationPreferences, onChange: @escaping (MenuBarPreferences) -> Void, onAlertsChange: @escaping (NotificationPreferences) -> Void, onLoginChange: @escaping (Bool) -> Void, notificationSettingsReader: @escaping (@escaping (NotificationReadiness) -> Void) -> Void = { completion in
-            UNUserNotificationCenter.current().getNotificationSettings { completion(NotificationReadiness($0)) }
-        }) {
+    init(target: AnyObject, enable: Selector, test: Selector, updates: Selector, loginSettings: Selector, quit: Selector, preferences: MenuBarPreferences, alerts: NotificationPreferences, onChange: @escaping (MenuBarPreferences) -> Void, onAlertsChange: @escaping (NotificationPreferences) -> Void, onLoginChange: @escaping (Bool) -> Void, notificationSettingsReader: ((@escaping (NotificationReadiness) -> Void) -> Void)? = nil) {
         onPreferencesChange = onChange
         notifications = NotificationControls(target: target, enable: enable, test: test, alerts: alerts, onAlertsChange: onAlertsChange, readSettings: notificationSettingsReader)
         general = GeneralControls(target: target, updates: updates, loginSettings: loginSettings, onLoginChange: onLoginChange)
