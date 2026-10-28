@@ -60,7 +60,9 @@ final class ControlsWindow: NSWindowController {
         let spacer = NSView(); spacer.setContentHuggingPriority(.defaultLow, for: .horizontal)
         let about = NSButton(title: "About", target: self, action: #selector(showAbout)); about.bezelStyle = .inline
         let footer = NSStackView(views: [details, about, spacer, quitButton]); footer.spacing = 12
-        for view in [heading, devices.view, menuOptions, notifications.view, general.view, help.view, footer] { stack.addArrangedSubview(view); view.widthAnchor.constraint(equalTo: stack.widthAnchor).isActive = true }
+        for view in [heading, devices.view, menuOptions, notifications.view, general.view, footer] { stack.addArrangedSubview(view); view.widthAnchor.constraint(equalTo: stack.widthAnchor).isActive = true }
+        stack.insertArrangedSubview(help.view, at: stack.arrangedSubviews.count - 1)
+        help.view.widthAnchor.constraint(equalTo: stack.widthAnchor).isActive = true
         scrollView.hasVerticalScroller = true; scrollView.autohidesScrollers = true; scrollView.drawsBackground = false
         scrollView.translatesAutoresizingMaskIntoConstraints = false
         documentView.frame = NSRect(x: 0, y: 0, width: 440, height: 430)
