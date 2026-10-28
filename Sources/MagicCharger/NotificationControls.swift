@@ -71,13 +71,12 @@ final class NotificationControls: NSObject {
         self.readSettings = readSettings
         enableButton = NSButton(title: "Enable Notifications…", target: target, action: enable)
         testButton = NSButton(title: "Send Test", target: target, action: test)
+        testButton.isEnabled = false
         let notificationTitle = NSTextField(labelWithString: "Notifications"); notificationTitle.font = .systemFont(ofSize: 13, weight: .semibold)
         notificationLabel.font = .systemFont(ofSize: 12); notificationLabel.textColor = .secondaryLabelColor
         readinessDetail.font = .systemFont(ofSize: 12); readinessDetail.textColor = .secondaryLabelColor
         let notificationHeading = NSStackView(views: [notificationTitle, notificationLabel, readinessDetail]); notificationHeading.orientation = .vertical; notificationHeading.alignment = .leading; notificationHeading.spacing = 4
         notificationLabel.widthAnchor.constraint(equalTo: notificationHeading.widthAnchor).isActive = true
-        readinessDetail.widthAnchor.constraint(equalTo: notificationHeading.widthAnchor).isActive = true
-        testButton.isEnabled = false
         let controls = NSStackView(views: [enableButton, testButton]); controls.spacing = 10
         enableButton.keyEquivalent = "e"; enableButton.keyEquivalentModifierMask = .command
         testButton.keyEquivalent = "t"; testButton.keyEquivalentModifierMask = .command
@@ -99,6 +98,7 @@ final class NotificationControls: NSObject {
         view = NSStackView(views: [notificationHeading, alertOptions, controls, feedback]); view.orientation = .vertical; view.alignment = .leading; view.spacing = 10
         super.init()
         for toggle in alertToggles.values { toggle.target = self; toggle.action = #selector(changeAlerts) }
+        readinessDetail.widthAnchor.constraint(equalTo: notificationHeading.widthAnchor).isActive = true
         notificationHeading.widthAnchor.constraint(equalTo: view.widthAnchor).isActive = true
         alertOptions.widthAnchor.constraint(equalTo: view.widthAnchor).isActive = true
         feedback.widthAnchor.constraint(equalTo: view.widthAnchor).isActive = true
