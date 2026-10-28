@@ -13,9 +13,10 @@ final class AppDelegate: NSObject, NSApplicationDelegate, UNUserNotificationCent
     var window: NSWindow!
     var controls: ControlsWindow!
     var timer: Timer?
-    var engine = Thresholds()
-    var starts = ChargingStarts()
-    var latestReadings: [String: Reading] = [:]
+    var lifecycle = AlertLifecycle()
+    var engine: Thresholds { get { lifecycle.thresholds } set { lifecycle.thresholds = newValue } }
+    var starts: ChargingStarts { lifecycle.starts }
+    var latestReadings: [String: Reading] { lifecycle.latest }
     var lastPersistedAt = Date.distantPast
     var lastSessionSignature = ""
     var observations: [NSObjectProtocol] = []
@@ -31,7 +32,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, UNUserNotificationCent
     var pollInterval: TimeInterval = 30
     let telemetryQueue = DispatchQueue(label: "local.magiccharger.telemetry", qos: .utility)
     let center = UNUserNotificationCenter.current()
-    let storage = "chargingSessions.v2"
+    let sessionStore = SessionStore(defaults: .standard)
     func applicationDidFinishLaunching(_ notification: Notification) {
         let launchEvent = NSAppleEventManager.shared().currentAppleEvent
         let launchedAtLogin = AppLaunch.isLoginItem(eventID: launchEvent?.eventID,
@@ -42,13 +43,13 @@ final class AppDelegate: NSObject, NSApplicationDelegate, UNUserNotificationCent
         if let key = defaults.data(forKey: "identityKey.v1"), key.count == 32 { identityKey = key }
         else { identityKey = SymmetricKey(size: .bits256).withUnsafeBytes { Data($0) }; defaults.set(identityKey, forKey: "identityKey.v1") }
         updateNotificationStatus()
-        if let data = UserDefaults.standard.data(forKey: storage), let sessions = try? JSONDecoder().decode([String: Session].self, from: data) { engine.sessions = sessions }
+        engine = sessionStore.load()
         makeWindow(); accessoryMonitor.onChange = { [weak self] in self?.refresh() }; refresh()
         if !launchedAtLogin { showSettings() }
         schedulePolling(30)
         let nc = NSWorkspace.shared.notificationCenter
-        observations.append(nc.addObserver(forName: NSWorkspace.willSleepNotification, object: nil, queue: .main) { [weak self] _ in self?.suspended = true; self?.generation += 1; self?.starts.invalidate(); self?.engine.invalidateContinuity(); self?.menuBar.clear() })
-        observations.append(nc.addObserver(forName: NSWorkspace.didWakeNotification, object: nil, queue: .main) { [weak self] _ in self?.suspended = false; self?.generation += 1; self?.refresh() })
+        observations.append(nc.addObserver(forName: NSWorkspace.willSleepNotification, object: nil, queue: .main) { [weak self] _ in self?.suspended = true; self?.generation += 1; self?.lifecycle.suspend(); self?.menuBar.clear() })
+        observations.append(nc.addObserver(forName: NSWorkspace.didWakeNotification, object: nil, queue: .main) { [weak self] _ in self?.suspended = false; self?.generation += 1; self?.lifecycle.resume(); self?.refresh() })
     }
     func applicationShouldHandleReopen(_ sender: NSApplication, hasVisibleWindows flag: Bool) -> Bool { showSettings(); return true }
     func applicationDidBecomeActive(_ notification: Notification) {
@@ -78,9 +79,11 @@ final class AppDelegate: NSObject, NSApplicationDelegate, UNUserNotificationCent
         }
     }
     func render(_ readings: [Reading]) {
-        latestReadings = Dictionary(uniqueKeysWithValues: readings.map { ($0.id, $0) })
-        engine.retainContinuity(for: Set(readings.map { $0.id }))
-        for started in starts.consume(readings) where alertPreferences.started { notifyStarted(started) }
+        let selected = lifecycle.observe(readings, now: Date(), preferences: alertPreferences)
+        for alert in selected {
+            if alert.kind == .started { notifyStarted(alert.reading) }
+            else { notify(alert.reading, threshold: alert.kind == .soon ? 78 : (alert.kind == .target ? 80 : 100)) }
+        }
         let activeIDs = menuBar.retainChargingItems(for: readings)
         schedulePolling(activeIDs.isEmpty ? 30 : 10)
         var diagnostic = readings.isEmpty ? "No supported accessories detected.\nMonitoring every 30 seconds." : readings.map { "\($0.name): \($0.percent.map { "\($0)%" } ?? "unknown") — \($0.state.rawValue)\n\($0.evidence)" }.joined(separator: "\n\n")
@@ -90,8 +93,6 @@ final class AppDelegate: NSObject, NSApplicationDelegate, UNUserNotificationCent
         diagnostic += "\n\n" + notificationDetails + "\n" + foregroundPresentation
         controls.update(readings: readings, notificationStatus: notificationStatus, feedback: notificationFeedback, diagnostic: diagnostic)
         for r in readings {
-            let thresholds = engine.consume(r, enabled: alertPreferences.milestones)
-            if !thresholds.isEmpty { notify(r, threshold: thresholds.max()!) }
             menuBar.present(r, preferences: displayPreferences, target: self)
         }
         let signature = engine.sessions.sorted { $0.key < $1.key }.map {
@@ -102,9 +103,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, UNUserNotificationCent
         }
     }
     func persistSessions() {
-        if let data = try? JSONEncoder().encode(engine.sessions) {
-            UserDefaults.standard.set(data, forKey: storage); lastPersistedAt = Date()
-        }
+        sessionStore.save(engine.sessions); lastPersistedAt = Date()
     }
     func applicationWillTerminate(_ notification: Notification) { persistSessions() }
     func makeWindow() {

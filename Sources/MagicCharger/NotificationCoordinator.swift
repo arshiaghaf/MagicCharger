@@ -2,33 +2,21 @@ import AppKit
 import UserNotifications
 
 extension AppDelegate {
-    func submitNotification(_ content: UNMutableNotificationContent, reading: Reading, identifier: String, kind: AlertKind, full: Bool = false) {
-        guard alertPreferences.allows(kind) else { return }
-        let requestGeneration = generation
+    func submitNotification(_ content: UNMutableNotificationContent, reading: Reading, identifier: String, kind: AlertKind) {
+        let ticket = lifecycle.ticket(for: reading, kind: kind)
         let requestToken = alertSettings.token(kind)
-        center.getNotificationSettings { settings in
-            guard settings.authorizationStatus == .authorized || settings.authorizationStatus == .provisional else {
-                DispatchQueue.main.async { self.notificationFeedback = "Automatic alert not submitted: notification permission unavailable."; self.refresh() }
-                return
+        let delivery = AlertDelivery(authorize: { callback in
+            self.center.getNotificationSettings { settings in
+                callback(settings.authorizationStatus == .authorized || settings.authorizationStatus == .provisional)
             }
-            DispatchQueue.main.async {
-                guard self.alertSettings.canSubmit(kind, token: requestToken) else {
-                    self.notificationFeedback = "Automatic alert canceled: notification choice changed."; self.refresh(); return
-                }
-                guard !self.suspended, requestGeneration == self.generation,
-                      reading.fresh(at: Date()), let current = self.latestReadings[reading.id], current.fresh(at: Date()) else {
-                    self.notificationFeedback = "Automatic alert canceled: sleep, disconnect or stale observation."; self.refresh(); return
-                }
-                let stillValid = full ? (current.percent == 100 && current.fullChargeEvidence) : current.active
-                guard stillValid else { self.notificationFeedback = "Automatic alert canceled: current charging evidence changed."; self.refresh(); return }
-                self.center.add(UNNotificationRequest(identifier: identifier, content: content, trigger: nil)) { error in
-                    DispatchQueue.main.async {
-                        self.notificationFeedback = error == nil ? "Automatic notification submitted to macOS." : "Automatic notification submission failed; check notification settings."
-                        self.refresh()
-                    }
-                }
-            }
-        }
+        }, schedule: { DispatchQueue.main.async(execute: $0) })
+        delivery.submit(isValid: {
+            self.alertSettings.canSubmit(kind, token: requestToken) && self.lifecycle.validates(ticket, now: Date())
+        }, send: { completion in
+            self.center.add(UNNotificationRequest(identifier: identifier, content: content, trigger: nil)) { completion($0 == nil) }
+        }, feedback: { message in
+            self.notificationFeedback = message; self.refresh()
+        })
     }
     func notifyStarted(_ r: Reading) {
         guard let percent = r.percent, (0...100).contains(percent) else { return }
@@ -45,7 +33,7 @@ extension AppDelegate {
         content.title = copy.title
         content.body = copy.body
         content.sound = .default
-        submitNotification(content, reading: r, identifier: "milestone-\(threshold)-\(r.id)", kind: .milestone(threshold), full: threshold == 100 || r.fullChargeEvidence)
+        submitNotification(content, reading: r, identifier: "milestone-\(threshold)-\(r.id)", kind: .milestone(threshold))
     }
     func updateAlertPreferences(_ preferences: NotificationPreferences) {
         let disabled = AlertKind.allCases.filter { !preferences.allows($0) }

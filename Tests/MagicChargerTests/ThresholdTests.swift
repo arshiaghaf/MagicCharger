@@ -31,7 +31,7 @@ final class ThresholdTests: XCTestCase {
         _ = t.consume(reading(0, .idle, at: now.addingTimeInterval(-100)), now: now)
         XCTAssertEqual(t.consume(reading(78), now: now), [])
         XCTAssertEqual(t.consume(reading(80, at: now.addingTimeInterval(100)), now: now), [])
-        XCTAssertEqual(t.consume(reading(80), now: now), [80])
+        XCTAssertEqual(t.consume(reading(80), now: now), []) // Fresh recovery establishes a baseline.
     }
     func testLongUnknownGapDoesNotReplayHistoricalCrossing() {
         var t = Thresholds(); _ = t.consume(reading(77), now: now)
