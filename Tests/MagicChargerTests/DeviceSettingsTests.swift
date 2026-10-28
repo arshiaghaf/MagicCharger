@@ -93,4 +93,15 @@ final class DeviceSettingsTests: XCTestCase {
         XCTAssertFalse(DeviceIdentity.isPersistent("registry:801:42"))
     }
 
+    func testMuteTransitionBaselinesPendingFullEvidenceWithoutReplay() {
+        let a = r(id(1), 99)
+        var lifecycle = AlertLifecycle()
+        _ = lifecycle.observe([a], now: now, preferences: NotificationPreferences())
+        XCTAssertTrue(lifecycle.observe([r(a.id, 100)], now: now, preferences: NotificationPreferences()).isEmpty)
+        lifecycle.invalidateDevice(a.id) // mute or unmute
+        let full = Reading(id: a.id, name: a.name, symbol: a.symbol, percent: 100,
+            state: .unknown, sampled: now, evidence: "SIMULATED", fullChargeEvidence: true)
+        XCTAssertTrue(lifecycle.observe([full], now: now, preferences: NotificationPreferences()).isEmpty)
+    }
+
 }
