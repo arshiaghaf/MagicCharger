@@ -5,13 +5,16 @@ extension AppDelegate {
     func submitNotification(_ content: UNMutableNotificationContent, reading: Reading, identifier: String, kind: AlertKind) {
         let ticket = lifecycle.ticket(for: reading, kind: kind)
         let requestToken = alertSettings.token(kind)
+        let deviceToken = deviceSettings.revision(for: reading.id)
         let delivery = AlertDelivery(authorize: { callback in
             self.center.getNotificationSettings { settings in
                 callback(settings.authorizationStatus == .authorized || settings.authorizationStatus == .provisional)
             }
         }, schedule: { DispatchQueue.main.async(execute: $0) })
         delivery.submit(isValid: {
-            self.alertSettings.canSubmit(kind, token: requestToken) && self.lifecycle.validates(ticket, now: Date())
+            self.alertSettings.canSubmit(kind, token: requestToken) &&
+            !self.deviceSettings.isMuted(reading.id) && self.deviceSettings.revision(for: reading.id) == deviceToken &&
+            self.lifecycle.validates(ticket, now: Date())
         }, send: { completion in
             self.center.add(UNNotificationRequest(identifier: identifier, content: content, trigger: nil)) { completion($0 == nil) }
         }, feedback: { message in

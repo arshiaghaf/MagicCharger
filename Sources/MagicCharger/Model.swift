@@ -28,6 +28,7 @@ struct Thresholds {
         prune(now: now)
     }
     mutating func invalidateContinuity() { continuousCharging.removeAll() }
+    mutating func invalidateContinuity(for id: String) { continuousCharging.remove(id) }
     mutating func retainContinuity(for ids: Set<String>) { continuousCharging.formIntersection(ids) }
     @discardableResult mutating func prune(now: Date = Date()) -> Bool {
         let count = sessions.count
@@ -79,6 +80,7 @@ struct ChargingStarts {
     private var armedIdle: [String: Reading] = [:]
     private(set) var lastDecisions: [String] = []
     mutating func invalidate() { armedIdle.removeAll(); lastDecisions.removeAll() }
+    mutating func invalidate(for id: String) { armedIdle.removeValue(forKey: id) }
     mutating func consume(_ readings: [Reading], now: Date = Date()) -> [Reading] {
         // A short transport gap is not proof that a fresh observed idle ended.
         // Only a same-identity idle sample can arm a start, and it expires in90s.

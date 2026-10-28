@@ -25,6 +25,11 @@ struct AlertLifecycle {
         latest.removeAll(); starts.invalidate(); thresholds.invalidateContinuity()
     }
     mutating func resume() { suspended = false; generation += 1 }
+    mutating func invalidateDevice(_ id: String) {
+        revisions[id, default: 0] += 1
+        thresholds.invalidateContinuity(for: id)
+        starts.invalidate(for: id)
+    }
     mutating func observe(_ input: [Reading], now: Date, preferences: NotificationPreferences,
                           allowsDevice: (String) -> Bool = { _ in true }) -> [SelectedAlert] {
         thresholds.prune(now: now)
